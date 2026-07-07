@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика ресторана</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; }
+
+/* HEADER */
+header { background: #1a1a2e; color: #fff; padding: 18px 32px; display: flex; align-items: center; gap: 14px; }
+header h1 { font-size: 20px; font-weight: 700; }
+header p  { font-size: 12px; opacity: .5; margin-top: 2px; }
+
+/* UPLOAD PAGE */
+#uploadPage { max-width: 640px; margin: 60px auto; padding: 0 24px; }
+#uploadPage h2 { text-align: center; font-size: 22px; margin-bottom: 8px; }
+#uploadPage .sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 32px; }
+
+#dropZone {
+  border: 2px dashed #b0b8d0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 48px 32px;
+  text-align: center;
+  transition: .2s;
+  cursor: pointer;
+}
+#dropZone.over { border-color: #5c6bc0; background: #f0f2ff; }
+#dropZone svg  { margin-bottom: 16px; }
+#dropZone h3   { font-size: 17px; margin-bottom: 6px; }
+#dropZone p    { color: #999; font-size: 13px; margin-bottom: 20px; }
+.pick-btn {
+  display: inline-block;
+  background: #5c6bc0;
+  color: #fff;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+.pick-btn:hover { background: #3f51b5; }
+.demo-hint { margin-top: 18px; font-size: 13px; color: #bbb; }
+.demo-hint a { color: #5c6bc0; cursor: pointer; text-decoration: underline; }
+
+.loaded-files { margin-top: 20px; }
+.loaded-file {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #f0faf0; border: 1px solid #c8e6c9; border-radius: 10px;
+  padding: 10px 16px; margin-bottom: 8px; font-size: 14px;
+}
+.loaded-file .fname { font-weight: 700; color: #2e7d32; }
+.loaded-file .fmeta { color: #888; font-size: 12px; margin-top: 2px; }
+.loaded-file .del { background: none; border: none; color: #ccc; cursor: pointer; font-size: 18px; line-height: 1; }
+.loaded-file .del:hover { color: #ef5350; }
+
+.go-btn {
+  display: block; width: 100%; margin-top: 20px;
+  background: #5c6bc0; color: #fff; border: none;
+  padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: .2s;
+}
+.go-btn:hover { background: #3f51b5; }
+.go-btn:disabled { opacity: .35; cursor: default; }
+
+/* DASHBOARD */
+#dashPage { display: none; max-width: 1240px; margin: 0 auto; padding: 24px 24px 56px; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
+  background: #fff; border-radius: 12px; padding: 12px 18px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+}
+.topbar-files { display: flex; gap: 12px; flex-wrap: wrap; }
+.ftag { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ftag strong { color: #1a1a2e; }
+.pill { font-size: 11px; padding: 2px 9px; border-radius: 10px; font-weight: 700; }
+.pill.orders { background: #e8eaf6; color: #3f51b5; }
+.pill.carts  { background: #e0f2f1; color: #00796b; }
+.back-btn { border: 1px solid #e0e0e0; background: none; color: #888; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.back-btn:hover { border-color: #5c6bc0; color: #5c6bc0; }
+
+/* FILTERS */
+.filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.fg label { display: block; font-size: 11px; color: #aaa; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+.fg select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: #fff; min-width: 150px; cursor: pointer; }
+
+/* SECTION */
+.section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #aaa; margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.kpi { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); border-left: 4px solid #5c6bc0; }
+.kpi:nth-child(2) { border-color: #26c6da; }
+.kpi:nth-child(3) { border-color: #66bb6a; }
+.kpi:nth-child(4) { border-color: #ffa726; }
+.kpi:nth-child(5) { border-color: #ef5350; }
+.kpi:nth-child(6) { border-color: #ab47bc; }
+.kpi .klabel { font-size: 11px; color: #aaa; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.kpi .kval   { font-size: 24px; font-weight: 800; margin: 5px 0 2px; }
+.kpi .ksub   { font-size: 11px; color: #ccc; }
+
+/* CHARTS */
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+.card h3 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 14px; }
+.ch { position: relative; height: 260px; }
+.ch.tall { height: 340px; }
+
+/* TABLES */
+.tcard { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 18px; overflow-x: auto; }
+.tcard h3 { font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; background: #f7f8fc; color: #aaa; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+td { padding: 8px 12px; border-bottom: 1px solid #f2f2f2; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbff; }
+.r { color: #ccc; font-weight: 800; width: 28px; }
+.bar { display: inline-block; height: 5px; border-radius: 3px; background: linear-gradient(90deg,#5c6bc0,#26c6da); vertical-align: middle; margin-left: 8px; }
+.cchip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
+
+@media(max-width: 768px) { .row2 { grid-template-columns: 1fr; } #dashPage { padding: 12px 12px 40px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="10" fill="white" fill-opacity="0.12"/>
+    <path d="M8 26h20M10 22c0-3 2-6 8-6s8 3 8 6M14 16V10M22 16V10M14 10h8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div><h1>Аналитика ресторана</h1><p>Загрузите файл заказов и/или блюд</p></div>
+</header>
+
+<!-- ============ UPLOAD PAGE ============ -->
+<div id="uploadPage">
+  <h2>Загрузить файл</h2>
+  <p class="sub">Поддерживаются: заказы (заказы.csv) и блюда (carts_*.csv)</p>
+
+  <div id="dropZone">
+    <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+      <rect width="52" height="52" rx="14" fill="#e8eaf6"/>
+      <path d="M26 34V18M26 18l-7 7M26 18l7 7M15 36h22" stroke="#9fa8da" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h3>Перетащите CSV или Excel файл</h3>
+    <p>или нажмите кнопку ниже — программа сама определит тип файла</p>
+    <button class="pick-btn" onclick="document.getElementById('fileIn').click()">Выбрать файл</button>
+    <input type="file" id="fileIn" accept=".csv,.xlsx,.xls" style="display:none" onchange="onFileSelected(this)">
+    <div class="demo-hint">Нет файла? <a onclick="loadDemo()">Загрузить демо-данные</a></div>
+  </div>
+
+  <div class="loaded-files" id="loadedFiles"></div>
+  <button class="go-btn" id="goBtn" disabled onclick="showDash()">Открыть аналитику →</button>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashPage">
+  <div class="topbar">
+    <div class="topbar-files" id="topFiles"></div>
+    <button class="back-btn" onclick="backToUpload()">↩ Загрузить другой файл</button>
+  </div>
+
+  <!-- ORDERS -->
+  <div id="secOrders" style="display:none">
+    <div class="section-label">📋 Аналитика заказов</div>
+    <div class="filters" id="filters"></div>
+    <div class="kpis" id="kpisOrders"></div>
+    <div class="row2">
+      <div class="card"><h3>📈 Выручка от еды по дням</h3><div class="ch"><canvas id="cDay"></canvas></div></div>
+      <div class="card"><h3>🏪 Выручка по точкам продажи</h3><div class="ch"><canvas id="cBranch"></canvas></div></div>
+    </div>
+    <div class="row2">
+      <div class="card"><h3>🚀 Источник заказов</h3><div class="ch"><canvas id="cPlatform"></canvas></div></div>
+      <div class="card"><h3>💳 Методы оплаты</h3><div class="ch"><canvas id="cPayment"></canvas></div></div>
+    </div>
+    <div class="row2">
+      <div class="card"><h3>⏰ Выручка по часам</h3><div class="ch"><canvas id="cHours"></canvas></div></div>
+      <div class="card"><h3>📅 По дням недели</h3><div class="ch"><canvas id="cWeekday"></canvas></div></div>
+    </div>
+    <div class="tcard"><h3>📅 Последние 14 дней</h3><div id="tDays"></div></div>
+  </div>
+
+  <!-- CARTS -->
+  <div id="secCarts" style="display:none">
+    <div class="section-label">🍽️ Аналитика блюд</div>
+    <div class="kpis" id="kpisCarts"></div>
+    <div class="row2">
+      <div class="card"><h3>🏆 Топ-15 блюд по выручке</h3><div class="ch tall"><canvas id="cTopRev"></canvas></div></div>
+      <div class="card"><h3>📦 Топ-15 по количеству</h3><div class="ch tall"><canvas id="cTopQty"></canvas></div></div>
+    </div>
+    <div class="row2">
+      <div class="card"><h3>🗂️ Выручка по категориям</h3><div class="ch"><canvas id="cCatRev"></canvas></div></div>
+      <div class="card"><h3>📊 Количество по категориям</h3><div class="ch"><canvas id="cCatQty"></canvas></div></div>
+    </div>
+    <div class="tcard"><h3>📋 Все позиции меню</h3><div id="tDishes"></div></div>
+  </div>
+</div>
+
+<script>
+// ====================================================
+// STATE
+// ====================================================
+var orders    = [];   // parsed orders (from заказы file)
+var ordDishes = [];   // dish lines from orders file
+var dishRows  = [];   // aggregated dish rows (from carts file)
+var charts    = {};
+var loadedFiles = []; // { name, type:'orders'|'carts', meta }
+
+// ====================================================
+// CATEGORIES
+// ====================================================
+var CATS = [
+  { name:'California',     color:'#5c6bc0', re:/^california/i },
+  { name:'Сеты',           color:'#26c6da', re:/^(set |silver|diamond|gold \d|waldorf|unicorn|raw bar|mood sea|what is love|nami |grill \d|x\.o\.|phila |lucky |master)/i },
+  { name:'Hosomaki',       color:'#66bb6a', re:/^hosomaki/i },
+  { name:'Futomaki',       color:'#ffa726', re:/^futomaki/i },
+  { name:'Nigiri',         color:'#ef5350', re:/^nigiri/i },
+  { name:'Gunkan',         color:'#ab47bc', re:/^gunkan/i },
+  { name:'Бургеры',        color:'#29b6f6', re:/^burger/i },
+  { name:'Роллы/Обёртки',  color:'#a5d6a7', re:/^(kioto wrap|tokyo wrap|kimbap)/i },
+  { name:'Ланчи',          color:'#4db6ac', re:/^lunch/i },
+  { name:'Закуски/Супы',   color:'#ff7043', re:/^(tom yam|miso|edamame|gyoza|salatka|tatar|krewetki|pierożki|corn dog|hokkaido|bite of|full crab|bizon|tuńczyk|kosz)/i },
+  { name:'Десерты',        color:'#f06292', re:/^(mochi|słodka|słodki)/i },
+  { name:'Напитки',        color:'#78909c', re:/^(coca|sprite|sok|woda|choya|hata ramune|piwo)/i },
+  { name:'Доп.',           color:'#b0bec5', re:/./i },
+];
+function getCat(name) {
+  for (var i=0; i<CATS.length; i++) if (CATS[i].re.test(name)) return CATS[i];
+  return { name:'Прочее', color:'#9e9e9e' };
+}
+
+var PLT = [
+  { re:/glovo/i,  label:'Glovo',  color:'#ff8000' },
+  { re:/uber/i,   label:'Uber',   color:'#111' },
+  { re:/bolt/i,   label:'Bolt',   color:'#34d186' },
+  { re:/pyszne/i, label:'Pyszne', color:'#e31837' },
+  { re:/wolt/i,   label:'Wolt',   color:'#009de0' },
+];
+var PLT_COLORS = { Glovo:'#ff8000', Uber:'#111', Bolt:'#34d186', Pyszne:'#e31837', Wolt:'#009de0', 'Прямой':'#5c6bc0' };
+
+function detectPlatform(name) {
+  for (var i=0; i<PLT.length; i++) if (PLT[i].re.test(name)) return PLT[i].label;
+  return 'Прямой';
+}
+function detectBranch(addr) {
+  if (addr.indexOf('Rzeczypospolitej') !== -1) return 'Rzeczypospolitej 8';
+  if (addr.indexOf('Jana Pawła')       !== -1) return 'Jana Pawła II 45A';
+  if (addr.indexOf('Remiszewska')      !== -1) return 'Remiszewska 14a';
+  return 'Доставка';
+}
+
+// ====================================================
+// DRAG & DROP ON DROP ZONE
+// ====================================================
+var dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', function(){  dz.classList.remove('over'); });
+dz.addEventListener('drop', function(e) {
+  e.preventDefault(); dz.classList.remove('over');
+  var f = e.dataTransfer.files[0];
+  if (f) processFile(f);
+});
+
+function onFileSelected(input) {
+  if (input.files && input.files[0]) {
+    processFile(input.files[0]);
+    input.value = ''; // reset so same file can be re-selected
+  }
+}
+
+// ====================================================
+// FILE TYPE DETECTION & DISPATCH
+// ====================================================
+function processFile(file) {
+  var name = file.name.toLowerCase();
+  var reader = new FileReader();
+
+  if (name.endsWith('.csv')) {
+    reader.onload = function(e) {
+      var text = e.target.result;
+      var rows = parseCSV(text);
+      dispatchRows(rows, file.name);
+    };
+    reader.readAsText(file, 'utf-8');
+  } else {
+    reader.onload = function(e) {
+      var wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'DD.MM.YYYY HH:mm' });
+      dispatchRows(rows, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function parseCSV(text) {
+  var lines = text.replace(/\r/g, '').split('\n');
+  return lines.map(function(l){ return l.split(';').map(function(c){ return c.trim(); }); });
+}
+
+// Detect file type from headers
+function dispatchRows(rows, name) {
+  if (!rows || rows.length < 2) { alert('Файл пустой или не читается'); return; }
+  var header = (rows[0] || []).map(function(c){ return String(c||'').trim().toLowerCase(); });
+
+  // Carts file: Блюда;Кол-во;Цена;Итого
+  if (header[0].indexOf('блюда') !== -1 || header[0].indexOf('dania') !== -1 || header[0].indexOf('item') !== -1) {
+    addCartsData(rows, name);
+    return;
+  }
+  // Orders file: first col is #, has Дата, Сумма
+  if (header[0] === '#' || header[1].indexOf('дата') !== -1 || header[1].indexOf('date') !== -1) {
+    addOrdersData(rows, name);
+    return;
+  }
+  // Fallback: try to detect by column count
+  if (rows[0].length >= 13) {
+    addOrdersData(rows, name);
+  } else {
+    addCartsData(rows, name);
+  }
+}
+
+// ====================================================
+// PARSE ORDERS
+// ====================================================
+function addOrdersData(rows, name) {
+  // ---- Detect column indices from header (robust, handles extra columns) ----
+  var hdr = (rows[0] || []).map(function(c){ return String(c||'').trim().toLowerCase(); });
+
+  function col1(kws) { // first match
+    for (var i=0;i<hdr.length;i++) for (var j=0;j<kws.length;j++) if (hdr[i].indexOf(kws[j])!==-1) return i;
+    return -1;
+  }
+  function col2(kw) { // second occurrence of keyword
+    var found=0;
+    for (var i=0;i<hdr.length;i++) if (hdr[i].indexOf(kw)!==-1 && ++found===2) return i;
+    return -1;
+  }
+
+  // Payment columns: find all that contain cash/online keywords
+  var iDate  = col1(['дата','date']);
+  var iTotal = col1(['сумма','total','suma']);
+  var iDisc  = col1(['скидка','discount','rabat']);
+  var iDeliv = col1(['стоимость доставки','delivery cost','dostaw']);
+  var iCash  = col1(['наличными']); // "Наличными" specifically
+  var iCard  = col1(['картой при получении']);
+  var iOnl1  = col1(['онлайн','online']);
+  var iOnl2  = col2('онлайн') !== -1 ? col2('онлайн') : col2('online');
+  var iWD    = col1(['wd gotówka','wd gotowka']); // extra cash col in monthly export
+  var iPort  = col1(['portali']);
+  var iPhone = col1(['телефон','phone','tel']);
+  var iName  = col1(['имя','name','imię']);
+  var iAddr  = col1(['адрес','address','adres']);
+  var iDish  = col1(['блюда','dania','dish','item','позиция']);
+  var iQty   = col1(['кол-во','ilość','qty','count','количество']);
+  var iPrice = col1(['цена','price','cena']);
+
+  // Fallback to hardcoded positions if detection fails (old 17-col format)
+  if (iDish  === -1) iDish  = 13;
+  if (iQty   === -1) iQty   = 14;
+  if (iPrice === -1) iPrice = 15;
+  if (iName  === -1) iName  = 11;
+  if (iAddr  === -1) iAddr  = 12;
+
+  var parsed = [], parsedDishes = [], cur = null;
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    var id = r[0] ? String(r[0]).trim() : '';
+    if (id !== '' && /^\d+$/.test(id)) {
+      var personName = iName !== -1 ? (r[iName] || '') : '';
+      var address    = iAddr !== -1 ? (r[iAddr] || '') : '';
+      cur = {
+        id: id,
+        date:      iDate  !== -1 ? parseDate(r[iDate] || '') : null,
+        total:     iTotal !== -1 ? toN(r[iTotal]) : 0,
+        discount:  iDisc  !== -1 ? toN(r[iDisc])  : 0,
+        delivery:  iDeliv !== -1 ? toN(r[iDeliv]) : 0,
+        cash:      (iCash !== -1 ? toN(r[iCash]) : 0) + (iWD !== -1 ? toN(r[iWD]) : 0),
+        cardOnDel: iCard  !== -1 ? toN(r[iCard])  : 0,
+        online1:   iOnl1  !== -1 ? toN(r[iOnl1])  : 0,
+        online2:   iOnl2  !== -1 ? toN(r[iOnl2])  : 0,
+        portali:   iPort  !== -1 ? toN(r[iPort])   : 0,
+        name:      personName,
+        address:   address,
+        platform:  detectPlatform(personName),
+        branch:    detectBranch(address),
+        dishes:    [],
+      };
+      var dishName = r[iDish] ? String(r[iDish]).trim() : '';
+      if (dishName) {
+        var d = { name: dishName, qty: toN(r[iQty]) || 1, price: toN(r[iPrice]), orderId: id };
+        cur.dishes.push(d); parsedDishes.push(d);
+      }
+      parsed.push(cur);
+    } else if (cur) {
+      var dishName2 = r[iDish] ? String(r[iDish]).trim() : '';
+      if (dishName2) {
+        var d2 = { name: dishName2, qty: toN(r[iQty]) || 1, price: toN(r[iPrice]), orderId: cur.id };
+        cur.dishes.push(d2); parsedDishes.push(d2);
+      }
+    }
+  }
+  orders    = parsed.filter(function(o){ return o.total > 0 || o.dishes.length > 0; });
+  ordDishes = parsedDishes;
+  registerFile(name, 'orders', orders.length + ' заказов');
+}
+
+// ====================================================
+// PARSE CARTS
+// ====================================================
+function addCartsData(rows, name) {
+  var map = {};
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    var nm = r[0] ? String(r[0]).trim() : '';
+    if (!nm) continue;
+    if (!map[nm]) map[nm] = { name: nm, qty: 0, total: 0 };
+    map[nm].qty   += toN(r[1]);
+    map[nm].total += toN(r[3]);
+  }
+  dishRows = Object.values(map);
+  registerFile(name, 'carts', dishRows.length + ' позиций');
+}
+
+function registerFile(name, type, meta) {
+  // Remove existing of same type
+  loadedFiles = loadedFiles.filter(function(f){ return f.type !== type; });
+  loadedFiles.push({ name: name, type: type, meta: meta });
+  renderLoadedFiles();
+}
+
+function renderLoadedFiles() {
+  var html = '';
+  loadedFiles.forEach(function(f, i) {
+    html += '<div class="loaded-file">' +
+      '<div><div class="fname">' + (f.type === 'orders' ? '📋' : '🍽️') + ' ' + f.name + '</div>' +
+      '<div class="fmeta">' + f.meta + '</div></div>' +
+      '<button class="del" onclick="removeFile(' + i + ')">×</button>' +
+      '</div>';
+  });
+  document.getElementById('loadedFiles').innerHTML = html;
+  document.getElementById('goBtn').disabled = loadedFiles.length === 0;
+}
+
+function removeFile(i) {
+  var type = loadedFiles[i].type;
+  if (type === 'orders') { orders = []; ordDishes = []; }
+  if (type === 'carts')  { dishRows = []; }
+  loadedFiles.splice(i, 1);
+  renderLoadedFiles();
+}
+
+// ====================================================
+// SHOW DASHBOARD
+// ====================================================
+function showDash() {
+  document.getElementById('uploadPage').style.display = 'none';
+  document.getElementById('dashPage').style.display   = 'block';
+
+  // Top bar
+  var info = '';
+  loadedFiles.forEach(function(f) {
+    info += '<div class="ftag"><strong>' + f.name + '</strong>' +
+      '<span class="pill ' + f.type + '">' + f.meta + '</span></div>';
+  });
+  document.getElementById('topFiles').innerHTML = info;
+
+  // Sections
+  if (orders.length > 0) {
+    document.getElementById('secOrders').style.display = 'block';
+    buildFilters();
+    renderOrders();
+  }
+  if (dishRows.length > 0) {
+    document.getElementById('secCarts').style.display = 'block';
+    renderCarts();
+  }
+}
+
+function backToUpload() {
+  // Destroy all charts
+  Object.keys(charts).forEach(function(k){ charts[k].destroy(); });
+  charts = {};
+  document.getElementById('secOrders').style.display = 'none';
+  document.getElementById('secCarts').style.display  = 'none';
+  document.getElementById('dashPage').style.display  = 'none';
+  document.getElementById('uploadPage').style.display = 'block';
+}
+
+// ====================================================
+// FILTERS
+// ====================================================
+function buildFilters() {
+  var platforms = [];
+  orders.forEach(function(o){ if (platforms.indexOf(o.platform) === -1) platforms.push(o.platform); });
+  platforms.sort();
+  var html = '<div class="fg"><label>Период</label><select id="fPeriod" onchange="renderOrders()">' +
+    '<option value="all" selected>Все время</option>' +
+    '<option value="month">Текущий месяц</option>' +
+    '<option value="prev">Предыдущий месяц</option>' +
+    '<option value="7">Последние 7 дней</option>' +
+    '<option value="30">Последние 30 дней</option>' +
+    '<option value="90">Последние 90 дней</option>' +
+    '</select></div>' +
+    '<div class="fg"><label>Платформа</label><select id="fPlatform" onchange="renderOrders()">' +
+    '<option value="">Все</option>' +
+    platforms.map(function(p){ return '<option>' + p + '</option>'; }).join('') +
+    '</select></div>' +
+    '<div class="fg"><label>Точка</label><select id="fBranch" onchange="renderOrders()">' +
+    '<option value="">Все точки</option>' +
+    '<option>Rzeczypospolitej 8</option>' +
+    '<option>Jana Pawła II 45A</option>' +
+    '<option>Remiszewska 14a</option>' +
+    '<option>Доставка</option>' +
+    '</select></div>';
+  document.getElementById('filters').innerHTML = html;
+}
+
+function getFiltered() {
+  var period   = (document.getElementById('fPeriod')   || {}).value || 'all';
+  var platform = (document.getElementById('fPlatform') || {}).value || '';
+  var branch   = (document.getElementById('fBranch')   || {}).value || '';
+  var now = new Date(); now.setHours(23,59,59,999);
+  var from = null, to = now;
+  if (period === '7')    { from = new Date(); from.setDate(now.getDate()-7);  from.setHours(0,0,0,0); }
+  if (period === '30')   { from = new Date(); from.setDate(now.getDate()-30); from.setHours(0,0,0,0); }
+  if (period === '90')   { from = new Date(); from.setDate(now.getDate()-90); from.setHours(0,0,0,0); }
+  if (period === 'month'){ from = new Date(now.getFullYear(), now.getMonth(), 1); }
+  if (period === 'prev') { from = new Date(now.getFullYear(), now.getMonth()-1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0, 23,59,59); }
+  return orders.filter(function(o) {
+    if (from && o.date && o.date < from) return false;
+    if (to   && o.date && o.date > to)   return false;
+    if (platform && o.platform !== platform) return false;
+    if (branch   && o.branch   !== branch)   return false;
+    return true;
+  });
+}
+
+// ====================================================
+// RENDER ORDERS
+// ====================================================
+function renderOrders() {
+  var data = getFiltered();
+  renderKPIsOrders(data);
+  renderDayChart(data);
+  renderBranchChart(data);
+  renderPlatformChart(data);
+  renderPaymentChart(data);
+  renderHoursChart(data);
+  renderWeekdayChart(data);
+  renderDaysTable(data);
+}
+
+function renderKPIsOrders(data) {
+  var totalReceived = data.reduce(function(s,o){ return s+o.total; }, 0);
+  var delivery      = data.reduce(function(s,o){ return s+o.delivery; }, 0);
+  var foodRev       = totalReceived - delivery;  // выручка БЕЗ стоимости доставки
+  var cnt           = data.length;
+  var discount      = data.reduce(function(s,o){ return s+o.discount; }, 0);
+  var gross         = foodRev + discount;        // валовая выручка (до скидок)
+  var dishQty       = data.reduce(function(s,o){ return s+o.dishes.reduce(function(x,d){ return x+d.qty; },0); }, 0);
+  var today         = data.filter(function(o){ return isToday(o.date); }).length;
+  set('kpisOrders', [
+    { l:'Выручка от еды',      v:fmtM(foodRev),               s:cnt+' заказов' },
+    { l:'Средний чек',         v:fmtM(cnt?foodRev/cnt:0),     s:'на заказ' },
+    { l:'Доставка (клиенты)',  v:fmtM(delivery),              s:'оплачено клиентами' },
+    { l:'Скидки выданы',       v:fmtM(discount),              s:'валовая '+fmtM(gross) },
+    { l:'Продано штук',        v:fmtN(dishQty),               s:'позиций' },
+    { l:'Сегодня',             v:fmtN(today),                 s:'заказов' },
+  ]);
+}
+
+function set(id, kpis) {
+  document.getElementById(id).innerHTML = kpis.map(function(k) {
+    return '<div class="kpi"><div class="klabel">'+k.l+'</div><div class="kval">'+k.v+'</div><div class="ksub">'+k.s+'</div></div>';
+  }).join('');
+}
+
+function dc(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderDayChart(data) {
+  dc('day');
+  var m = {};
+  data.forEach(function(o) {
+    if (!o.date) return;
+    var k = o.date.toISOString().slice(0,10);
+    m[k] = (m[k]||0) + (o.total - o.delivery);  // еда без доставки
+  });
+  var labels = Object.keys(m).sort();
+  charts['day'] = new Chart(document.getElementById('cDay').getContext('2d'), {
+    type: 'line',
+    data: { labels: labels.map(function(l){ return dtShort(new Date(l+'T12:00:00')); }), datasets: [{
+      data: labels.map(function(l){ return m[l]; }),
+      borderColor: '#5c6bc0', backgroundColor: 'rgba(92,107,192,.12)',
+      tension: .4, fill: true, pointRadius: labels.length > 30 ? 0 : 3
+    }]},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ ticks:{callback:function(v){return short(v)+' zł';}}, grid:{color:'#f0f0f0'} },
+               x:{ grid:{display:false}, ticks:{maxTicksLimit:14, maxRotation:30} } } }
+  });
+}
+
+function renderBranchChart(data) {
+  dc('branch');
+  var BRANCHES = ['Rzeczypospolitej 8', 'Jana Pawła II 45A', 'Remiszewska 14a', 'Доставка'];
+  var rev = {}, cnt = {};
+  BRANCHES.forEach(function(b){ rev[b]=0; cnt[b]=0; });
+  data.forEach(function(o) {
+    var b = o.branch || 'Доставка';
+    rev[b] = (rev[b]||0) + (o.total - o.delivery);
+    cnt[b] = (cnt[b]||0) + 1;
+  });
+  var BCOLORS = {
+    'Rzeczypospolitej 8':'#5c6bc0',
+    'Jana Pawła II 45A':'#26c6da',
+    'Remiszewska 14a':  '#66bb6a',
+    'Доставка':         '#ffa726'
+  };
+  var labels = BRANCHES.filter(function(b){ return rev[b] > 0; });
+  charts['branch'] = new Chart(document.getElementById('cBranch').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Выручка',
+        data: labels.map(function(b){ return rev[b]; }),
+        backgroundColor: labels.map(function(b){ return BCOLORS[b]||'#9e9e9e'; }),
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: function(ctx) {
+          var b = labels[ctx.dataIndex];
+          return cnt[b] + ' заказов, ср. чек ' + fmtM(cnt[b]?rev[b]/cnt[b]:0);
+        }}}
+      },
+      scales: {
+        y: { ticks:{ callback:function(v){return short(v)+' zł';} }, grid:{color:'#f0f0f0'} },
+        x: { grid:{display:false} }
+      }
+    }
+  });
+}
+
+function renderWeekdayChart(data) {
+  dc('wd');
+  var days = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  var rev = [0,0,0,0,0,0,0], cnt = [0,0,0,0,0,0,0];
+  data.forEach(function(o) {
+    if (!o.date) return;
+    var d = o.date.getDay();
+    rev[d] += (o.total - o.delivery);
+    cnt[d] += 1;
+  });
+  // Reorder Mon–Sun
+  var order = [1,2,3,4,5,6,0];
+  charts['wd'] = new Chart(document.getElementById('cWeekday').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: order.map(function(i){ return days[i]; }),
+      datasets: [
+        { label:'Выручка', data: order.map(function(i){return rev[i];}),
+          backgroundColor:'rgba(92,107,192,.7)', borderRadius:5, yAxisID:'y' },
+        { label:'Заказов', data: order.map(function(i){return cnt[i];}),
+          type:'line', borderColor:'#ef5350', backgroundColor:'transparent',
+          tension:.3, pointRadius:4, yAxisID:'y2' }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{boxWidth:12, font:{size:11}} } },
+      scales: {
+        y:  { position:'left',  ticks:{callback:function(v){return short(v)+'zł';}}, grid:{color:'#f0f0f0'} },
+        y2: { position:'right', grid:{drawOnChartArea:false}, ticks:{color:'#ef5350'} },
+        x:  { grid:{display:false} }
+      }
+    }
+  });
+}
+
+function renderPlatformChart(data) {
+  dc('plt');
+  var m = {};
+  data.forEach(function(o){ m[o.platform] = (m[o.platform]||0) + (o.total - o.delivery); });
+  var ent = Object.entries(m).sort(function(a,b){ return b[1]-a[1]; });
+  var total = ent.reduce(function(s,e){ return s+e[1]; },0);
+  charts['plt'] = new Chart(document.getElementById('cPlatform').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: ent.map(function(e){return e[0];}), datasets:[{
+      data: ent.map(function(e){return e[1];}),
+      backgroundColor: ent.map(function(e){ return PLT_COLORS[e[0]] || '#9e9e9e'; }),
+      borderWidth: 2, borderColor: '#fff'
+    }]},
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{
+      position:'right', labels:{ boxWidth:12, font:{size:11},
+      generateLabels: function(chart) {
+        var t = chart.data.datasets[0].data.reduce(function(a,b){return a+b;},0);
+        return chart.data.labels.map(function(l,i){
+          return { text: l+': '+(chart.data.datasets[0].data[i]/t*100).toFixed(0)+'%',
+                   fillStyle: chart.data.datasets[0].backgroundColor[i], index:i };
+        });
+      }}}}}
+  });
+}
+
+function renderPaymentChart(data) {
+  dc('pay');
+  var pay = { 'Наличными':0, 'Картой':0, 'Онлайн':0, 'Portali':0 };
+  data.forEach(function(o) {
+    pay['Наличными'] += o.cash;
+    pay['Картой']    += o.cardOnDel;
+    pay['Онлайн']    += o.online1 + o.online2;
+    pay['Portali']   += o.portali;
+  });
+  var ent = Object.entries(pay).filter(function(e){ return e[1]>0; }).sort(function(a,b){ return b[1]-a[1]; });
+  charts['pay'] = new Chart(document.getElementById('cPayment').getContext('2d'), {
+    type: 'bar',
+    data: { labels: ent.map(function(e){return e[0];}), datasets:[{
+      data: ent.map(function(e){return e[1];}),
+      backgroundColor: ['#66bb6a','#5c6bc0','#26c6da','#ffa726'], borderRadius:8
+    }]},
+    options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{ legend:{display:false} },
+      scales:{ x:{ticks:{callback:function(v){return short(v);}}, grid:{color:'#f0f0f0'}}, y:{grid:{display:false}} } }
+  });
+}
+
+function renderHoursChart(data) {
+  dc('hrs');
+  var h = new Array(24).fill(0);
+  data.forEach(function(o){ if (o.date) h[o.date.getHours()] += o.total; });
+  charts['hrs'] = new Chart(document.getElementById('cHours').getContext('2d'), {
+    type: 'bar',
+    data: { labels: Array.from({length:24},function(_,i){return i+':00';}), datasets:[{
+      data: h, backgroundColor: 'rgba(38,198,218,.7)', borderColor:'#26c6da', borderWidth:1, borderRadius:4
+    }]},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ticks:{callback:function(v){return short(v);}}, grid:{color:'#f0f0f0'}}, x:{grid:{display:false}, ticks:{maxRotation:0, font:{size:10}}} } }
+  });
+}
+
+function renderDaysTable(data) {
+  var m = {};
+  data.forEach(function(o) {
+    if (!o.date) return;
+    var k = o.date.toISOString().slice(0,10);
+    if (!m[k]) m[k] = { food:0, delivery:0, cnt:0, discount:0 };
+    m[k].food     += (o.total - o.delivery);
+    m[k].delivery += o.delivery;
+    m[k].cnt      += 1;
+    m[k].discount += o.discount;
+  });
+  var rows = Object.entries(m).sort(function(a,b){ return b[0]<a[0]?-1:1; }).slice(0,14);
+  document.getElementById('tDays').innerHTML = rows.length ? '<table>' +
+    '<tr><th>Дата</th><th>Выручка (еда)</th><th>Доставка</th><th>Заказов</th><th>Ср. чек</th><th>Скидки</th></tr>' +
+    rows.map(function(e) {
+      var k=e[0], d=e[1];
+      return '<tr><td>'+dtFull(new Date(k+'T12:00:00'))+'</td>' +
+        '<td><strong>'+fmtM(d.food)+'</strong></td>' +
+        '<td style="color:#888">'+fmtM(d.delivery)+'</td>' +
+        '<td>'+d.cnt+'</td>' +
+        '<td>'+fmtM(d.cnt?d.food/d.cnt:0)+'</td>' +
+        '<td>'+fmtM(d.discount)+' <span style="font-size:11px;color:#bbb">'+(d.food+d.discount>0?(d.discount/(d.food+d.discount)*100).toFixed(1):0)+'%</span></td></tr>';
+    }).join('') + '</table>' : '<p style="text-align:center;padding:30px;color:#ccc">Нет данных</p>';
+}
+
+// ====================================================
+// RENDER CARTS
+// ====================================================
+function renderCarts() {
+  var enriched = dishRows.map(function(d){ return Object.assign({}, d, {cat: getCat(d.name)}); });
+  var totalRev = enriched.reduce(function(s,d){return s+d.total;},0);
+  var totalQty = enriched.reduce(function(s,d){return s+d.qty;},0);
+
+  // exclude packaging/extras for top charts
+  var main = enriched.filter(function(d){
+    return !/^(opakowanie|sos |wasabi|imbir|ryż|unagi)/i.test(d.name.trim());
+  });
+  var topByRev = main.slice().sort(function(a,b){return b.total-a.total;})[0];
+
+  set('kpisCarts', [
+    { l:'Выручка от блюд',   v: fmtM(totalRev),                       s:'суммарно' },
+    { l:'Продано позиций',   v: fmtN(totalQty),                       s:'штук' },
+    { l:'Позиций в меню',    v: fmtN(enriched.length),                s:'уникальных' },
+    { l:'Топ блюдо',         v: topByRev ? (topByRev.name.length>16?topByRev.name.slice(0,14)+'…':topByRev.name) : '—', s: topByRev?fmtM(topByRev.total):'' },
+    { l:'Средняя цена',      v: fmtM(totalQty?totalRev/totalQty:0),   s:'за единицу' },
+    { l:'Категорий',         v: fmtN([...new Set(enriched.map(function(d){return d.cat.name;}))].length), s:'групп' },
+  ]);
+
+  renderHBar('cTopRev', main.slice().sort(function(a,b){return b.total-a.total;}).slice(0,15),
+    function(d){return d.total;}, function(d){return fmtM(d.total);}, function(d){return d.cat.color;});
+  renderHBar('cTopQty', main.slice().sort(function(a,b){return b.qty-a.qty;}).slice(0,15),
+    function(d){return d.qty;},   function(d){return fmtN(d.qty);},   function(d){return d.cat.color;});
+
+  // Category charts
+  var catRev={}, catQty={}, catCol={};
+  enriched.forEach(function(d){
+    catRev[d.cat.name] = (catRev[d.cat.name]||0) + d.total;
+    catQty[d.cat.name] = (catQty[d.cat.name]||0) + d.qty;
+    catCol[d.cat.name] = d.cat.color;
+  });
+  var catEnt = Object.entries(catRev).sort(function(a,b){return b[1]-a[1];}).filter(function(e){return e[1]>0;});
+  var catQEnt= Object.entries(catQty).sort(function(a,b){return b[1]-a[1];}).filter(function(e){return e[1]>0;});
+
+  dc('catRev');
+  charts['catRev'] = new Chart(document.getElementById('cCatRev').getContext('2d'), {
+    type:'doughnut',
+    data:{ labels:catEnt.map(function(e){return e[0];}), datasets:[{
+      data:catEnt.map(function(e){return e[1];}),
+      backgroundColor:catEnt.map(function(e){return catCol[e[0]];}), borderWidth:2, borderColor:'#fff'
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ boxWidth:11, font:{size:10},
+      generateLabels: function(chart){
+        var t=chart.data.datasets[0].data.reduce(function(a,b){return a+b;},0);
+        return chart.data.labels.map(function(l,i){
+          return { text:l+': '+(chart.data.datasets[0].data[i]/t*100).toFixed(0)+'%', fillStyle:chart.data.datasets[0].backgroundColor[i], index:i };
+        });
+      }}}}}
+  });
+
+  dc('catQty');
+  charts['catQty'] = new Chart(document.getElementById('cCatQty').getContext('2d'), {
+    type:'bar',
+    data:{ labels:catQEnt.map(function(e){return e[0];}), datasets:[{
+      data:catQEnt.map(function(e){return e[1];}),
+      backgroundColor:catQEnt.map(function(e){return catCol[e[0]];}), borderRadius:6
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{grid:{color:'#f0f0f0'}, ticks:{callback:function(v){return fmtN(v);}}},
+               x:{grid:{display:false}, ticks:{maxRotation:30, font:{size:10}}} } }
+  });
+
+  // Full table
+  var sorted = enriched.slice().sort(function(a,b){return b.total-a.total;});
+  var maxR = sorted[0]?sorted[0].total:1;
+  document.getElementById('tDishes').innerHTML = '<table>' +
+    '<tr><th>#</th><th>Блюдо</th><th>Категория</th><th>Выручка</th><th>Продано</th><th>Ср. цена</th></tr>' +
+    sorted.map(function(d,i){
+      return '<tr><td class="r">'+(i+1)+'</td>' +
+        '<td>'+d.name+'<span class="bar" style="width:'+Math.max(10,d.total/maxR*80)+'px"></span></td>' +
+        '<td><span class="cchip" style="background:'+d.cat.color+'22;color:'+d.cat.color+'">'+d.cat.name+'</span></td>' +
+        '<td><strong>'+fmtM(d.total)+'</strong></td>' +
+        '<td>'+fmtN(d.qty)+'</td>' +
+        '<td>'+fmtM(d.qty?d.total/d.qty:0)+'</td></tr>';
+    }).join('') + '</table>';
+}
+
+function renderHBar(id, items, valFn, lblFn, colorFn) {
+  dc(id);
+  charts[id] = new Chart(document.getElementById(id).getContext('2d'), {
+    type:'bar',
+    data:{ labels:items.map(function(d){return d.name.length>28?d.name.slice(0,26)+'…':d.name;}),
+           datasets:[{data:items.map(valFn), backgroundColor:items.map(colorFn), borderRadius:5}]},
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(ctx){return lblFn(items[ctx.dataIndex]);}}} },
+      scales:{ x:{ticks:{callback:function(v){return short(v);}}, grid:{color:'#f0f0f0'}},
+               y:{grid:{display:false}, ticks:{font:{size:11}}} } }
+  });
+}
+
+// ====================================================
+// DEMO DATA
+// ====================================================
+function loadDemo() {
+  // Demo orders
+  var addrs=['Aleja Rzeczypospolitej 8, Warszawa (local U7)','Aleja Jana Pawła II 45 A, Warszawa (local 53B)','ul. Remiszewska 14a, Warszawa','Warszawa, Marszałkowska, 83'];
+  var plats=['','GLOVO#1 Anna','UBER#A12 Marta','BOLT#X1 Kate','PYSZNE#AB Jan'];
+  var dd=[{n:'California Philadelphia Classic',p:54},{n:'Hosomaki Łosoś',p:24},{n:'Set Lokal Night 34 szt.',p:159},{n:'Burger z łososiem',p:39},{n:'Tom Yam',p:34},{n:'Nigiri łosoś 2szt.',p:14},{n:'Diamond łosoś 38szt.',p:190},{n:'Futomaki Sashimi',p:59}];
+  var rows=[['#','Дата','Сумма','Скидка','Доставка','Наличными','Картой','Онлайн','Онлайн','Portali','Телефон','Имя','Адрес','Блюда','Кол-во','Цена','Бонус']];
+  var id=30000, now=new Date();
+  for(var i=0;i<250;i++){
+    id++;
+    var d=new Date(now); d.setDate(now.getDate()-Math.floor(Math.random()*60));
+    d.setHours(10+Math.floor(Math.random()*12),Math.floor(Math.random()*60));
+    var addr=addrs[Math.floor(Math.random()*addrs.length)];
+    var pl=plats[Math.floor(Math.random()*plats.length)];
+    var nd=1+Math.floor(Math.random()*4), sum=0, od=[];
+    for(var j=0;j<nd;j++){var dish=dd[Math.floor(Math.random()*dd.length)];var qty=1+Math.floor(Math.random()*2);od.push({n:dish.n,p:dish.p,q:qty});sum+=dish.p*qty;}
+    var disc=Math.random()<.3?Math.round(sum*.2*10)/10:0; sum=Math.round((sum-disc)*100)/100;
+    var cash=Math.random()<.2?sum:0, online=cash?0:sum;
+    var ds=pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    rows.push([id,ds,sum,disc,'',cash?sum:'','',cash?'':online,'','','',pl||'Klient',addr,od[0].n,od[0].q,od[0].p,'']);
+    for(var j2=1;j2<od.length;j2++) rows.push(['','','','','','','','','','','','','',od[j2].n,od[j2].q,od[j2].p,'']);
+  }
+  addOrdersData(rows,'demo_orders.csv');
+
+  // Demo carts
+  var cr=[['Блюда','Кол-во','Цена','Итого']];
+  dd.forEach(function(x){var q=Math.floor(Math.random()*40)+5;cr.push([x.n,q,x.p,q*x.p]);});
+  addCartsData(cr,'demo_carts.csv');
+
+  showDash();
+}
+
+function pad(n){return n<10?'0'+n:n;}
+function isToday(d){if(!d)return false;var n=new Date();return d.getDate()===n.getDate()&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}
+
+// ====================================================
+// HELPERS
+// ====================================================
+function parseDate(s) {
+  if (!s) return null;
+  var m = String(s).match(/(\d{1,2})\.(\d{2})\.(\d{4})\s*(\d{2}):(\d{2})/);
+  if (m) return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]);
+  var x = new Date(s);
+  return isNaN(x) ? null : x;
+}
+function toN(v) {
+  if (v===undefined||v===null||v==='') return 0;
+  return parseFloat(String(v).replace(/\s/g,'').replace(',','.')) || 0;
+}
+
+var FMT  = new Intl.NumberFormat('pl-PL',{style:'currency',currency:'PLN',maximumFractionDigits:2});
+var FMTN = new Intl.NumberFormat('pl-PL');
+function fmtM(v) { return v ? FMT.format(v)  : '0,00 zł'; }
+function fmtN(v) { return FMTN.format(Math.round(v)); }
+function short(v){ if(Math.abs(v)>=1e6) return (v/1e6).toFixed(1)+'M'; if(Math.abs(v)>=1e3) return (v/1e3).toFixed(0)+'K'; return Math.round(v); }
+function dtShort(d){ return d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit'}); }
+function dtFull(d) { return d.toLocaleDateString('ru-RU',{weekday:'short',day:'2-digit',month:'short'}); }
+</script>
+</body>
+</html>
